@@ -1,0 +1,613 @@
+The Battle of Neighborhood 2
+
+#Introduction
+This project is to take a glimpse at different neighborhoods of Providence,RI and Hartford,CT. Both cities are capital cities of their states and are major cities between New York City and Boston in East Coast.
+Travelers from inside and outside of New England area who want to dicide where to visit and business owners may be interested in the project.
+
+#Data
+I organized two data sets of zipcode and neighborhoods with latitude and longtude for each city from multiple online sources
+Methodology
+Basic skills from week 3 lab
+Majorly relied on Foursquare API to retrieve all venues of each neighborhoods, then group by each neighborhoods and to count how many venues before filter top 10 most common venue types of each neighborhoods
+
+## Data where you describe the data that will be used to solve the problem and the source of the data.
+
+# Import the required library
+import numpy as np
+import pandas as pd
+
+# Load data of Providence,RI
+df_pvd=pd.read_excel("pvd.xlsx")
+df_pvd.head()
+
+<style scoped> .dataframe tbody tr th:only-of-type { vertical-align: middle; }
+
+.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+
+</style>
+	Zipcode 	Neighborhoods 	Latitude 	Longitude
+0 	2906 	Blackstone 	41.846388 	-71.385406
+1 	2904 	Charles 	41.812104 	-71.429089
+2 	2906 	College Hill 	41.830157 	-71.403219
+3 	2903 	Downtown 	41.822533 	-71.415094
+4 	2908 	Elmhurst 	41.840911 	-71.438842
+
+# Add '0' before '2' of each zipcode
+df_pvd['Zipcode']='0'+ df_pvd['Zipcode'].astype(str)
+
+df_pvd.head()
+
+<style scoped> .dataframe tbody tr th:only-of-type { vertical-align: middle; }
+
+.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+
+</style>
+	Zipcode 	Neighborhoods 	Latitude 	Longitude
+0 	02906 	Blackstone 	41.846388 	-71.385406
+1 	02904 	Charles 	41.812104 	-71.429089
+2 	02906 	College Hill 	41.830157 	-71.403219
+3 	02903 	Downtown 	41.822533 	-71.415094
+4 	02908 	Elmhurst 	41.840911 	-71.438842
+
+df_pvd.shape
+
+(30, 4)
+
+# Load data of Hartford,CT
+df_bdl=pd.read_excel("bdl.xlsx")
+df_bdl.head()
+
+<style scoped> .dataframe tbody tr th:only-of-type { vertical-align: middle; }
+
+.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+
+</style>
+	Zipcode 	Neighborhoods 	Latitude 	Longitude
+0 	6105 	Asylum Hill 	41.773149 	-72.694937
+1 	6106 	Barry Square 	41.747158 	-72.683114
+2 	6114 	Barry Square 	41.747158 	-72.683114
+3 	6106 	Behind The Rocks 	41.745071 	-72.700849
+4 	6112 	Blue Hills 	41.812877 	-72.697593
+
+# Add '0' before '6' of each zipcode
+df_bdl['Zipcode']='0'+ df_bdl['Zipcode'].astype(str)
+
+df_bdl.head()
+
+<style scoped> .dataframe tbody tr th:only-of-type { vertical-align: middle; }
+
+.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+
+</style>
+	Zipcode 	Neighborhoods 	Latitude 	Longitude
+0 	06105 	Asylum Hill 	41.773149 	-72.694937
+1 	06106 	Barry Square 	41.747158 	-72.683114
+2 	06114 	Barry Square 	41.747158 	-72.683114
+3 	06106 	Behind The Rocks 	41.745071 	-72.700849
+4 	06112 	Blue Hills 	41.812877 	-72.697593
+
+df_bdl.shape
+
+(25, 4)
+
+# Import mapping libraries
+from geopy.geocoders import Nominatim
+import folium
+
+# Importing libraries
+import numpy as np # library to handle data in a vectorized manner
+
+import pandas as pd # library for data analsysis
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', None)
+
+import json # library to handle JSON files
+
+from geopy.geocoders import Nominatim # convert an address into latitude and longitude values
+
+import requests # library to handle requests
+from pandas.io.json import json_normalize # tranform JSON file into a pandas dataframe
+
+# Matplotlib and associated plotting modules
+import matplotlib.cm as cm
+import matplotlib.colors as colors
+
+# import k-means from clustering stage
+from sklearn.cluster import KMeans
+
+import folium # map rendering library
+
+print('Libraries imported.')
+
+Libraries imported.
+
+# Working with Foursquare
+CLIENT_ID = 'FD5IPVIXWPQA0FVEOHMZPM0MXPQIHKDQPO20JMZMCK1EA2LN' # your Foursquare ID
+CLIENT_SECRET = 'SXF5QRXJ4T1UVTLZFOXXSTVBXA54FMAOE1PMI0CP5X2IKAP0' # your Foursquare Secret
+VERSION = '20181224' # Foursquare API version
+
+print('My credentails:')
+print('CLIENT_ID: ' + CLIENT_ID)
+print('CLIENT_SECRET:' + CLIENT_SECRET)
+
+My credentails:
+CLIENT_ID: FD5IPVIXWPQA0FVEOHMZPM0MXPQIHKDQPO20JMZMCK1EA2LN
+CLIENT_SECRET:SXF5QRXJ4T1UVTLZFOXXSTVBXA54FMAOE1PMI0CP5X2IKAP0
+
+def getNearbyVenues(names, latitudes, longitudes, radius=500):
+    
+    venues_list=[]
+    for name, lat, lng in zip(names, latitudes, longitudes):
+        
+            
+        # create the API request URL
+        url = 'https://api.foursquare.com/v2/venues/explore?&client_id={}&client_secret={}&v={}&ll={},{}&radius={}&limit=100'.format(
+            CLIENT_ID, 
+            CLIENT_SECRET, 
+            VERSION, 
+            lat, 
+            lng, 
+            radius)
+            
+        # make the GET request
+        results = requests.get(url).json()["response"]['groups'][0]['items']
+        
+        # return only relevant information for each nearby venue
+        venues_list.append([(
+            name, 
+            lat, 
+            lng, 
+            v['venue']['name'], 
+            v['venue']['location']['lat'], 
+            v['venue']['location']['lng'],  
+            v['venue']['categories'][0]['name']) for v in results])
+
+    nearby_venues = pd.DataFrame([item for venue_list in venues_list for item in venue_list])
+    nearby_venues.columns = ['Neighborhood', 
+                  'Neighborhood Latitude', 
+                  'Neighborhood Longitude', 
+                  'Venue', 
+                  'Venue Latitude', 
+                  'Venue Longitude', 
+                  'Venue Category']
+    
+    return(nearby_venues)
+
+pvd_venues=getNearbyVenues(df_pvd['Neighborhoods'], df_pvd['Latitude'], df_pvd['Longitude'])
+bdl_venues=getNearbyVenues(df_bdl['Neighborhoods'], df_bdl['Latitude'], df_bdl['Longitude'])
+
+pvd_venues.head()
+
+<style scoped> .dataframe tbody tr th:only-of-type { vertical-align: middle; }
+
+.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+
+</style>
+	Neighborhood 	Neighborhood Latitude 	Neighborhood Longitude 	Venue 	Venue Latitude 	Venue Longitude 	Venue Category
+0 	Charles 	41.812104 	-71.429089 	Armory Park 	41.812957 	-71.431897 	Plaza
+1 	Charles 	41.812104 	-71.429089 	Hudson Street Delicatessen 	41.813256 	-71.434625 	Deli / Bodega
+2 	Charles 	41.812104 	-71.429089 	Family Dollar 	41.813362 	-71.427587 	Discount Store
+3 	Charles 	41.812104 	-71.429089 	Tropical Liquors 	41.812774 	-71.429217 	Liquor Store
+4 	Charles 	41.812104 	-71.429089 	John's NY System 	41.812643 	-71.429725 	Breakfast Spot
+
+bdl_venues.head()
+
+<style scoped> .dataframe tbody tr th:only-of-type { vertical-align: middle; }
+
+.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+
+</style>
+	Neighborhood 	Neighborhood Latitude 	Neighborhood Longitude 	Venue 	Venue Latitude 	Venue Longitude 	Venue Category
+0 	Asylum Hill 	41.773149 	-72.694937 	Au Bon Pain 	41.773804 	-72.699015 	Café
+1 	Asylum Hill 	41.773149 	-72.694937 	Sigourney Square Park 	41.775729 	-72.693938 	Park
+2 	Asylum Hill 	41.773149 	-72.694937 	Saint Francis Main Cafeteria 	41.774191 	-72.698254 	Café
+3 	Asylum Hill 	41.773149 	-72.694937 	Saint Francis Fitness Center 	41.773976 	-72.700199 	Gym
+4 	Asylum Hill 	41.773149 	-72.694937 	Cptv 	41.771270 	-72.700246 	Arts & Entertainment
+
+pvd_venues.shape
+
+(513, 7)
+
+bdl_venues.shape
+
+(464, 7)
+
+# Number of venues of each 
+pvd_venues.groupby('Neighborhood').count()
+
+<style scoped> .dataframe tbody tr th:only-of-type { vertical-align: middle; }
+
+.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+
+</style>
+	Neighborhood Latitude 	Neighborhood Longitude 	Venue 	Venue Latitude 	Venue Longitude 	Venue Category
+Neighborhood 						
+Charles 	9 	9 	9 	9 	9 	9
+College Hill 	50 	50 	50 	50 	50 	50
+Downtown 	70 	70 	70 	70 	70 	70
+Elmhurst 	4 	4 	4 	4 	4 	4
+Elmwood 	5 	5 	5 	5 	5 	5
+Federal Hill 	118 	118 	118 	118 	118 	118
+Fox Point 	82 	82 	82 	82 	82 	82
+Hartford 	4 	4 	4 	4 	4 	4
+Hope (Summit) 	44 	44 	44 	44 	44 	44
+Lower South Providence 	2 	2 	2 	2 	2 	2
+Manton 	10 	10 	10 	10 	10 	10
+Mount Hope 	18 	18 	18 	18 	18 	18
+Mount Pleasant 	8 	8 	8 	8 	8 	8
+Olneyville 	10 	10 	10 	10 	10 	10
+Reservoir 	16 	16 	16 	16 	16 	16
+Silver Lake 	11 	11 	11 	11 	11 	11
+Smith Hill 	22 	22 	22 	22 	22 	22
+South Elmwood 	22 	22 	22 	22 	22 	22
+Valley 	8 	8 	8 	8 	8 	8
+
+bdl_venues.groupby('Neighborhood').count()
+
+<style scoped> .dataframe tbody tr th:only-of-type { vertical-align: middle; }
+
+.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+
+</style>
+	Neighborhood Latitude 	Neighborhood Longitude 	Venue 	Venue Latitude 	Venue Longitude 	Venue Category
+Neighborhood 						
+Asylum Hill 	5 	5 	5 	5 	5 	5
+Barry Square 	14 	14 	14 	14 	14 	14
+Behind The Rocks 	3 	3 	3 	3 	3 	3
+Blue Hills 	8 	8 	8 	8 	8 	8
+Clay Arsenal 	12 	12 	12 	12 	12 	12
+Downtown 	186 	186 	186 	186 	186 	186
+Frog Hollow 	5 	5 	5 	5 	5 	5
+North East 	22 	22 	22 	22 	22 	22
+North Meadows 	13 	13 	13 	13 	13 	13
+Parkville 	12 	12 	12 	12 	12 	12
+Sheldon Charter Oak 	8 	8 	8 	8 	8 	8
+South End 	10 	10 	10 	10 	10 	10
+South Green 	30 	30 	30 	30 	30 	30
+South Meadows 	12 	12 	12 	12 	12 	12
+South West 	112 	112 	112 	112 	112 	112
+Upper Albany 	8 	8 	8 	8 	8 	8
+West End 	4 	4 	4 	4 	4 	4
+
+# one hot encoding
+pvd_onehot = pd.get_dummies(pvd_venues[['Venue Category']], prefix="", prefix_sep="")
+
+# add neighborhood column back to dataframe
+pvd_onehot['Neighborhood'] = pvd_venues['Neighborhood'] 
+
+# move neighborhood column to the first column
+fixed_columns = [pvd_onehot.columns[-1]] + list(pvd_onehot.columns[:-1])
+pvd_onehot = pvd_onehot[fixed_columns]
+
+pvd_onehot.head()
+
+<style scoped> .dataframe tbody tr th:only-of-type { vertical-align: middle; }
+
+.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+
+</style>
+	Neighborhood 	American Restaurant 	Art Gallery 	Asian Restaurant 	Automotive Shop 	BBQ Joint 	Bagel Shop 	Bakery 	Bar 	Beer Garden 	Bistro 	Bookstore 	Boutique 	Breakfast Spot 	Brewery 	Bubble Tea Shop 	Burger Joint 	Café 	Chinese Restaurant 	Chocolate Shop 	Clothing Store 	Cocktail Bar 	Coffee Shop 	College Bookstore 	College Gym 	Concert Hall 	Convenience Store 	Cosmetics Shop 	Creperie 	Dance Studio 	Deli / Bodega 	Department Store 	Dessert Shop 	Diner 	Discount Store 	Dive Bar 	Donut Shop 	Electronics Store 	Exhibit 	Farmers Market 	Fast Food Restaurant 	Fish Market 	Flower Shop 	Food 	Food Truck 	French Restaurant 	Fried Chicken Joint 	Frozen Yogurt Shop 	Gas Station 	Gastropub 	Gay Bar 	German Restaurant 	Gift Shop 	Gourmet Shop 	Greek Restaurant 	Grocery Store 	Gym 	Gym / Fitness Center 	Harbor / Marina 	Hardware Store 	Hockey Arena 	Hookah Bar 	Hot Dog Joint 	Hotel 	Ice Cream Shop 	Indian Restaurant 	Indie Movie Theater 	Italian Restaurant 	Japanese Restaurant 	Jewelry Store 	Karaoke Bar 	Korean Restaurant 	Lawyer 	Liquor Store 	Lounge 	Market 	Mediterranean Restaurant 	Mexican Restaurant 	Middle Eastern Restaurant 	Miscellaneous Shop 	Movie Theater 	Music Venue 	New American Restaurant 	Nightclub 	Noodle House 	Office 	Outdoor Supply Store 	Park 	Performing Arts Venue 	Perfume Shop 	Pet Store 	Pharmacy 	Pizza Place 	Playground 	Plaza 	Pool 	Public Art 	Record Shop 	Rental Car Location 	Restaurant 	Salon / Barbershop 	Sandwich Place 	Scenic Lookout 	Science Museum 	Sculpture Garden 	Seafood Restaurant 	Shipping Store 	Skating Rink 	South American Restaurant 	Spa 	Spanish Restaurant 	Speakeasy 	Sports Bar 	Steakhouse 	Supermarket 	Sushi Restaurant 	Taco Place 	Tea Room 	Thai Restaurant 	Theater 	Thrift / Vintage Store 	Vegetarian / Vegan Restaurant 	Video Store 	Vietnamese Restaurant 	Wine Bar 	Wine Shop 	Yoga Studio
+0 	Charles 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	1 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0
+1 	Charles 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	1 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0
+2 	Charles 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	1 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0
+3 	Charles 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	1 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0
+4 	Charles 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	1 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0
+
+pvd_grouped = pvd_onehot.groupby('Neighborhood').mean().reset_index()
+pvd_grouped.head()
+
+<style scoped> .dataframe tbody tr th:only-of-type { vertical-align: middle; }
+
+.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+
+</style>
+	Neighborhood 	American Restaurant 	Art Gallery 	Asian Restaurant 	Automotive Shop 	BBQ Joint 	Bagel Shop 	Bakery 	Bar 	Beer Garden 	Bistro 	Bookstore 	Boutique 	Breakfast Spot 	Brewery 	Bubble Tea Shop 	Burger Joint 	Café 	Chinese Restaurant 	Chocolate Shop 	Clothing Store 	Cocktail Bar 	Coffee Shop 	College Bookstore 	College Gym 	Concert Hall 	Convenience Store 	Cosmetics Shop 	Creperie 	Dance Studio 	Deli / Bodega 	Department Store 	Dessert Shop 	Diner 	Discount Store 	Dive Bar 	Donut Shop 	Electronics Store 	Exhibit 	Farmers Market 	Fast Food Restaurant 	Fish Market 	Flower Shop 	Food 	Food Truck 	French Restaurant 	Fried Chicken Joint 	Frozen Yogurt Shop 	Gas Station 	Gastropub 	Gay Bar 	German Restaurant 	Gift Shop 	Gourmet Shop 	Greek Restaurant 	Grocery Store 	Gym 	Gym / Fitness Center 	Harbor / Marina 	Hardware Store 	Hockey Arena 	Hookah Bar 	Hot Dog Joint 	Hotel 	Ice Cream Shop 	Indian Restaurant 	Indie Movie Theater 	Italian Restaurant 	Japanese Restaurant 	Jewelry Store 	Karaoke Bar 	Korean Restaurant 	Lawyer 	Liquor Store 	Lounge 	Market 	Mediterranean Restaurant 	Mexican Restaurant 	Middle Eastern Restaurant 	Miscellaneous Shop 	Movie Theater 	Music Venue 	New American Restaurant 	Nightclub 	Noodle House 	Office 	Outdoor Supply Store 	Park 	Performing Arts Venue 	Perfume Shop 	Pet Store 	Pharmacy 	Pizza Place 	Playground 	Plaza 	Pool 	Public Art 	Record Shop 	Rental Car Location 	Restaurant 	Salon / Barbershop 	Sandwich Place 	Scenic Lookout 	Science Museum 	Sculpture Garden 	Seafood Restaurant 	Shipping Store 	Skating Rink 	South American Restaurant 	Spa 	Spanish Restaurant 	Speakeasy 	Sports Bar 	Steakhouse 	Supermarket 	Sushi Restaurant 	Taco Place 	Tea Room 	Thai Restaurant 	Theater 	Thrift / Vintage Store 	Vegetarian / Vegan Restaurant 	Video Store 	Vietnamese Restaurant 	Wine Bar 	Wine Shop 	Yoga Studio
+0 	Charles 	0.000000 	0.000000 	0.000000 	0.0 	0.00 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.0 	0.111111 	0.000000 	0.00 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.0 	0.0 	0.00 	0.00 	0.111111 	0.000000 	0.00 	0.000000 	0.111111 	0.0 	0.0 	0.0 	0.0 	0.111111 	0.0 	0.0 	0.0 	0.111111 	0.000000 	0.0 	0.0 	0.00 	0.0 	0.000000 	0.000000 	0.0 	0.000000 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.00 	0.0 	0.000000 	0.00 	0.00 	0.00 	0.000000 	0.00 	0.00 	0.000000 	0.00 	0.0 	0.111111 	0.000000 	0.0 	0.00 	0.000000 	0.00 	0.00 	0.0 	0.00 	0.000000 	0.000000 	0.000000 	0.0 	0.0 	0.111111 	0.00 	0.0 	0.0 	0.000000 	0.000000 	0.00 	0.111111 	0.00 	0.0 	0.0 	0.111111 	0.000000 	0.00 	0.000000 	0.00 	0.0 	0.0 	0.0 	0.00 	0.000000 	0.0 	0.000000 	0.0 	0.00 	0.0 	0.000000 	0.0 	0.00 	0.0 	0.00 	0.0 	0.000000 	0.0 	0.00 	0.0 	0.0 	0.000000 	0.000000 	0.00
+1 	College Hill 	0.040000 	0.020000 	0.000000 	0.0 	0.02 	0.02 	0.000000 	0.000000 	0.000000 	0.000000 	0.02 	0.0 	0.000000 	0.000000 	0.02 	0.000000 	0.040000 	0.0 	0.000000 	0.020000 	0.000000 	0.060000 	0.000000 	0.02 	0.000000 	0.0 	0.0 	0.02 	0.02 	0.000000 	0.000000 	0.02 	0.000000 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.000000 	0.020000 	0.0 	0.0 	0.02 	0.0 	0.000000 	0.000000 	0.0 	0.020000 	0.0 	0.020000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.02 	0.0 	0.020000 	0.02 	0.02 	0.02 	0.000000 	0.02 	0.02 	0.000000 	0.06 	0.0 	0.000000 	0.000000 	0.0 	0.02 	0.040000 	0.02 	0.02 	0.0 	0.00 	0.000000 	0.000000 	0.000000 	0.0 	0.0 	0.000000 	0.02 	0.0 	0.0 	0.020000 	0.040000 	0.00 	0.000000 	0.02 	0.0 	0.0 	0.000000 	0.000000 	0.02 	0.020000 	0.02 	0.0 	0.0 	0.0 	0.02 	0.000000 	0.0 	0.000000 	0.0 	0.02 	0.0 	0.000000 	0.0 	0.02 	0.0 	0.02 	0.0 	0.000000 	0.0 	0.02 	0.0 	0.0 	0.000000 	0.000000 	0.02
+2 	Downtown 	0.028571 	0.014286 	0.014286 	0.0 	0.00 	0.00 	0.014286 	0.085714 	0.014286 	0.014286 	0.00 	0.0 	0.000000 	0.014286 	0.00 	0.028571 	0.014286 	0.0 	0.014286 	0.014286 	0.028571 	0.057143 	0.014286 	0.00 	0.014286 	0.0 	0.0 	0.00 	0.00 	0.014286 	0.014286 	0.00 	0.014286 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.000000 	0.028571 	0.0 	0.0 	0.00 	0.0 	0.014286 	0.042857 	0.0 	0.014286 	0.0 	0.028571 	0.0 	0.0 	0.0 	0.0 	0.0 	0.014286 	0.00 	0.0 	0.042857 	0.00 	0.00 	0.00 	0.028571 	0.00 	0.00 	0.014286 	0.00 	0.0 	0.000000 	0.014286 	0.0 	0.00 	0.014286 	0.00 	0.00 	0.0 	0.00 	0.042857 	0.014286 	0.014286 	0.0 	0.0 	0.014286 	0.00 	0.0 	0.0 	0.014286 	0.028571 	0.00 	0.000000 	0.00 	0.0 	0.0 	0.000000 	0.042857 	0.00 	0.028571 	0.00 	0.0 	0.0 	0.0 	0.00 	0.014286 	0.0 	0.014286 	0.0 	0.00 	0.0 	0.028571 	0.0 	0.00 	0.0 	0.00 	0.0 	0.028571 	0.0 	0.00 	0.0 	0.0 	0.014286 	0.014286 	0.00
+3 	Elmhurst 	0.000000 	0.000000 	0.000000 	0.0 	0.00 	0.00 	0.250000 	0.000000 	0.000000 	0.000000 	0.00 	0.0 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.0 	0.0 	0.00 	0.00 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.000000 	0.000000 	0.0 	0.0 	0.00 	0.0 	0.000000 	0.000000 	0.0 	0.000000 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.00 	0.0 	0.000000 	0.00 	0.00 	0.00 	0.000000 	0.00 	0.00 	0.000000 	0.00 	0.0 	0.250000 	0.000000 	0.0 	0.00 	0.000000 	0.00 	0.00 	0.0 	0.25 	0.000000 	0.000000 	0.000000 	0.0 	0.0 	0.000000 	0.00 	0.0 	0.0 	0.000000 	0.000000 	0.25 	0.000000 	0.00 	0.0 	0.0 	0.000000 	0.000000 	0.00 	0.000000 	0.00 	0.0 	0.0 	0.0 	0.00 	0.000000 	0.0 	0.000000 	0.0 	0.00 	0.0 	0.000000 	0.0 	0.00 	0.0 	0.00 	0.0 	0.000000 	0.0 	0.00 	0.0 	0.0 	0.000000 	0.000000 	0.00
+4 	Elmwood 	0.000000 	0.000000 	0.000000 	0.0 	0.00 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.0 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.2 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.0 	0.0 	0.00 	0.00 	0.000000 	0.000000 	0.00 	0.200000 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.000000 	0.000000 	0.0 	0.0 	0.00 	0.0 	0.000000 	0.000000 	0.0 	0.000000 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.00 	0.0 	0.000000 	0.00 	0.00 	0.00 	0.000000 	0.00 	0.00 	0.000000 	0.00 	0.0 	0.200000 	0.000000 	0.0 	0.00 	0.000000 	0.00 	0.00 	0.0 	0.00 	0.000000 	0.000000 	0.000000 	0.0 	0.0 	0.000000 	0.00 	0.0 	0.0 	0.000000 	0.000000 	0.00 	0.000000 	0.00 	0.0 	0.0 	0.000000 	0.000000 	0.00 	0.200000 	0.00 	0.0 	0.0 	0.0 	0.00 	0.000000 	0.0 	0.000000 	0.0 	0.00 	0.0 	0.000000 	0.2 	0.00 	0.0 	0.00 	0.0 	0.000000 	0.0 	0.00 	0.0 	0.0 	0.000000 	0.000000 	0.00
+
+# one hot encoding
+bdl_onehot = pd.get_dummies(bdl_venues[['Venue Category']], prefix="", prefix_sep="")
+
+# add neighborhood column back to dataframe
+bdl_onehot['Neighborhood'] = bdl_venues['Neighborhood'] 
+
+# move neighborhood column to the first column
+fixed_columns = [bdl_onehot.columns[-1]] + list(bdl_onehot.columns[:-1])
+bdl_onehot = bdl_onehot[fixed_columns]
+
+bdl_onehot.head()
+
+<style scoped> .dataframe tbody tr th:only-of-type { vertical-align: middle; }
+
+.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+
+</style>
+	Neighborhood 	Accessories Store 	American Restaurant 	Art Museum 	Arts & Entertainment 	Asian Restaurant 	Athletics & Sports 	BBQ Joint 	Bagel Shop 	Bakery 	Bank 	Bar 	Baseball Field 	Baseball Stadium 	Bistro 	Bookstore 	Boutique 	Bowling Alley 	Brewery 	Bubble Tea Shop 	Burger Joint 	Bus Station 	Cafeteria 	Café 	Caribbean Restaurant 	Chinese Restaurant 	Churrascaria 	Cocktail Bar 	Coffee Shop 	College Gym 	Concert Hall 	Construction & Landscaping 	Convenience Store 	Cosmetics Shop 	Cupcake Shop 	Deli / Bodega 	Dessert Shop 	Diner 	Discount Store 	Donut Shop 	Event Space 	Fast Food Restaurant 	Financial or Legal Service 	Food 	Food & Drink Shop 	Food Court 	Food Truck 	French Restaurant 	Furniture / Home Store 	Gas Station 	Grocery Store 	Gym 	Gym / Fitness Center 	Health & Beauty Service 	History Museum 	Hockey Arena 	Hot Dog Joint 	Hotel 	Hotel Bar 	Ice Cream Shop 	Indian Restaurant 	Insurance Office 	Italian Restaurant 	Japanese Restaurant 	Jewelry Store 	Kebab Restaurant 	Korean Restaurant 	Latin American Restaurant 	Lebanese Restaurant 	Lingerie Store 	Liquor Store 	Locksmith 	Market 	Mediterranean Restaurant 	Mental Health Office 	Mexican Restaurant 	Middle Eastern Restaurant 	Miscellaneous Shop 	Motel 	Motorcycle Shop 	Movie Theater 	Nightclub 	Optical Shop 	Other Nightlife 	Park 	Pharmacy 	Pizza Place 	Playground 	Plaza 	Pub 	Rental Car Location 	Rental Service 	Rock Club 	Sake Bar 	Sandwich Place 	Science Museum 	Seafood Restaurant 	Shipping Store 	Shoe Store 	Shopping Mall 	Smoke Shop 	Smoothie Shop 	Snack Place 	Spa 	Spanish Restaurant 	Sporting Goods Shop 	Stadium 	Steakhouse 	Supermarket 	Tapas Restaurant 	Thai Restaurant 	Theater 	Theme Park Ride / Attraction 	Toy / Game Store 	Vegetarian / Vegan Restaurant 	Video Store 	Vietnamese Restaurant 	Wine Bar 	Wine Shop 	Yoga Studio
+0 	Asylum Hill 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	1 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0
+1 	Asylum Hill 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	1 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0
+2 	Asylum Hill 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	1 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0
+3 	Asylum Hill 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	1 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0
+4 	Asylum Hill 	0 	0 	0 	1 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0 	0
+
+bdl_grouped = bdl_onehot.groupby('Neighborhood').mean().reset_index()
+bdl_grouped.head()
+
+<style scoped> .dataframe tbody tr th:only-of-type { vertical-align: middle; }
+
+.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+
+</style>
+	Neighborhood 	Accessories Store 	American Restaurant 	Art Museum 	Arts & Entertainment 	Asian Restaurant 	Athletics & Sports 	BBQ Joint 	Bagel Shop 	Bakery 	Bank 	Bar 	Baseball Field 	Baseball Stadium 	Bistro 	Bookstore 	Boutique 	Bowling Alley 	Brewery 	Bubble Tea Shop 	Burger Joint 	Bus Station 	Cafeteria 	Café 	Caribbean Restaurant 	Chinese Restaurant 	Churrascaria 	Cocktail Bar 	Coffee Shop 	College Gym 	Concert Hall 	Construction & Landscaping 	Convenience Store 	Cosmetics Shop 	Cupcake Shop 	Deli / Bodega 	Dessert Shop 	Diner 	Discount Store 	Donut Shop 	Event Space 	Fast Food Restaurant 	Financial or Legal Service 	Food 	Food & Drink Shop 	Food Court 	Food Truck 	French Restaurant 	Furniture / Home Store 	Gas Station 	Grocery Store 	Gym 	Gym / Fitness Center 	Health & Beauty Service 	History Museum 	Hockey Arena 	Hot Dog Joint 	Hotel 	Hotel Bar 	Ice Cream Shop 	Indian Restaurant 	Insurance Office 	Italian Restaurant 	Japanese Restaurant 	Jewelry Store 	Kebab Restaurant 	Korean Restaurant 	Latin American Restaurant 	Lebanese Restaurant 	Lingerie Store 	Liquor Store 	Locksmith 	Market 	Mediterranean Restaurant 	Mental Health Office 	Mexican Restaurant 	Middle Eastern Restaurant 	Miscellaneous Shop 	Motel 	Motorcycle Shop 	Movie Theater 	Nightclub 	Optical Shop 	Other Nightlife 	Park 	Pharmacy 	Pizza Place 	Playground 	Plaza 	Pub 	Rental Car Location 	Rental Service 	Rock Club 	Sake Bar 	Sandwich Place 	Science Museum 	Seafood Restaurant 	Shipping Store 	Shoe Store 	Shopping Mall 	Smoke Shop 	Smoothie Shop 	Snack Place 	Spa 	Spanish Restaurant 	Sporting Goods Shop 	Stadium 	Steakhouse 	Supermarket 	Tapas Restaurant 	Thai Restaurant 	Theater 	Theme Park Ride / Attraction 	Toy / Game Store 	Vegetarian / Vegan Restaurant 	Video Store 	Vietnamese Restaurant 	Wine Bar 	Wine Shop 	Yoga Studio
+0 	Asylum Hill 	0.0 	0.0 	0.0 	0.2 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.00 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.00 	0.0 	0.0 	0.4 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.00 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.000000 	0.2 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.2 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.00 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0
+1 	Barry Square 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.142857 	0.0 	0.0 	0.0 	0.00 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.00 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.142857 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.00 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.285714 	0.000000 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.142857 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.285714 	0.0 	0.00 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0
+2 	Behind The Rocks 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.00 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.00 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.00 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.333333 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.333333 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.333333 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.00 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0
+3 	Blue Hills 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.25 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.25 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.25 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.000000 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.25 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0
+4 	Clay Arsenal 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.00 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.00 	0.0 	0.0 	0.0 	0.0 	0.166667 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.166667 	0.00 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.166667 	0.0 	0.166667 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.000000 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.166667 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.000000 	0.0 	0.00 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.166667 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0 	0.0
+
+# Define a function for top venus for a neighborhood
+num_top_venues=10
+def return_most_common_venues(row, num_top_venues):
+    row_categories = row.iloc[1:]
+    row_categories_sorted = row_categories.sort_values(ascending=False)
+    
+    return row_categories_sorted.index.values[0:num_top_venues]
+
+num_top_venues = 10
+
+indicators = ['st', 'nd', 'rd']
+
+# create columns according to number of top venues
+columns = ['Neighborhood']
+for ind in np.arange(num_top_venues):
+    try:
+        columns.append('{}{} Most Common Venue'.format(ind+1, indicators[ind]))
+    except:
+        columns.append('{}th Most Common Venue'.format(ind+1))
+
+# create a new dataframe
+pvd_neighborhoods_venues_sorted = pd.DataFrame(columns=columns)
+pvd_neighborhoods_venues_sorted['Neighborhood'] = pvd_grouped['Neighborhood']
+
+for ind in np.arange(pvd_grouped.shape[0]):
+    pvd_neighborhoods_venues_sorted.iloc[ind, 1:] = return_most_common_venues(pvd_grouped.iloc[ind, :], num_top_venues)
+
+pvd_neighborhoods_venues_sorted.head()
+
+<style scoped> .dataframe tbody tr th:only-of-type { vertical-align: middle; }
+
+.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+
+</style>
+	Neighborhood 	1st Most Common Venue 	2nd Most Common Venue 	3rd Most Common Venue 	4th Most Common Venue 	5th Most Common Venue 	6th Most Common Venue 	7th Most Common Venue 	8th Most Common Venue 	9th Most Common Venue 	10th Most Common Venue
+0 	Charles 	Plaza 	Liquor Store 	Discount Store 	Deli / Bodega 	Food 	Rental Car Location 	Park 	Breakfast Spot 	Farmers Market 	Flower Shop
+1 	College Hill 	Korean Restaurant 	Coffee Shop 	Mexican Restaurant 	Pizza Place 	Café 	American Restaurant 	Mediterranean Restaurant 	Middle Eastern Restaurant 	Greek Restaurant 	Miscellaneous Shop
+2 	Downtown 	Bar 	Coffee Shop 	Hotel 	Gay Bar 	New American Restaurant 	Restaurant 	Sandwich Place 	Burger Joint 	Cocktail Bar 	Food Truck
+3 	Elmhurst 	Playground 	Music Venue 	Liquor Store 	Bakery 	Fast Food Restaurant 	Food Truck 	Food 	Flower Shop 	Fish Market 	Yoga Studio
+4 	Elmwood 	Diner 	Liquor Store 	Supermarket 	Sandwich Place 	Chinese Restaurant 	Donut Shop 	Electronics Store 	Exhibit 	Farmers Market 	French Restaurant
+
+num_top_venues = 10
+
+indicators = ['st', 'nd', 'rd']
+
+# create columns according to number of top venues
+columns = ['Neighborhood']
+for ind in np.arange(num_top_venues):
+    try:
+        columns.append('{}{} Most Common Venue'.format(ind+1, indicators[ind]))
+    except:
+        columns.append('{}th Most Common Venue'.format(ind+1))
+
+bdl_neighborhoods_venues_sorted = pd.DataFrame(columns=columns)
+bdl_neighborhoods_venues_sorted['Neighborhood'] = bdl_grouped['Neighborhood']
+
+for ind in np.arange(bdl_grouped.shape[0]):
+    bdl_neighborhoods_venues_sorted.iloc[ind, 1:] = return_most_common_venues(bdl_grouped.iloc[ind, :], num_top_venues)
+
+bdl_neighborhoods_venues_sorted.head()
+
+<style scoped> .dataframe tbody tr th:only-of-type { vertical-align: middle; }
+
+.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+
+</style>
+	Neighborhood 	1st Most Common Venue 	2nd Most Common Venue 	3rd Most Common Venue 	4th Most Common Venue 	5th Most Common Venue 	6th Most Common Venue 	7th Most Common Venue 	8th Most Common Venue 	9th Most Common Venue 	10th Most Common Venue
+0 	Asylum Hill 	Café 	Arts & Entertainment 	Park 	Gym 	Yoga Studio 	Food 	Cosmetics Shop 	Cupcake Shop 	Deli / Bodega 	Dessert Shop
+1 	Barry Square 	Rock Club 	Gas Station 	College Gym 	Bakery 	Mental Health Office 	Cupcake Shop 	Deli / Bodega 	Dessert Shop 	Food 	Cosmetics Shop
+2 	Behind The Rocks 	Pharmacy 	Grocery Store 	Locksmith 	Yoga Studio 	Food 	Convenience Store 	Cosmetics Shop 	Cupcake Shop 	Deli / Bodega 	Dessert Shop
+3 	Blue Hills 	Sandwich Place 	Donut Shop 	Burger Joint 	Baseball Stadium 	Yoga Studio 	Food & Drink Shop 	Cosmetics Shop 	Cupcake Shop 	Deli / Bodega 	Dessert Shop
+4 	Clay Arsenal 	Spanish Restaurant 	Pharmacy 	Chinese Restaurant 	Gym / Fitness Center 	Grocery Store 	Discount Store 	Financial or Legal Service 	Convenience Store 	Cosmetics Shop 	Cupcake Shop
+
+import numpy as np
+from sklearn.cluster import KMeans
+
+# set number of clusters
+kclusters = 5
+
+bdl_grouped_clustering = bdl_grouped.drop('Neighborhood', 1)
+
+# run k-means clustering
+kmeans = KMeans(n_clusters=kclusters, random_state=0).fit(bdl_grouped_clustering)
+
+# check cluster labels generated for each row in the dataframe
+kmeans.labels_[0:10]
+
+array([4, 0, 1, 0, 0, 0, 0, 0, 0, 0])
+
+bdl_grouped_clustering
+
+<style scoped> .dataframe tbody tr th:only-of-type { vertical-align: middle; }
+
+.dataframe tbody tr th {
+    vertical-align: top;
+}
+
+.dataframe thead th {
+    text-align: right;
+}
+
+</style>
+	Accessories Store 	American Restaurant 	Art Museum 	Arts & Entertainment 	Asian Restaurant 	Athletics & Sports 	BBQ Joint 	Bagel Shop 	Bakery 	Bank 	Bar 	Baseball Field 	Baseball Stadium 	Bistro 	Bookstore 	Boutique 	Bowling Alley 	Brewery 	Bubble Tea Shop 	Burger Joint 	Bus Station 	Cafeteria 	Café 	Caribbean Restaurant 	Chinese Restaurant 	Churrascaria 	Cocktail Bar 	Coffee Shop 	College Gym 	Concert Hall 	Construction & Landscaping 	Convenience Store 	Cosmetics Shop 	Cupcake Shop 	Deli / Bodega 	Dessert Shop 	Diner 	Discount Store 	Donut Shop 	Event Space 	Fast Food Restaurant 	Financial or Legal Service 	Food 	Food & Drink Shop 	Food Court 	Food Truck 	French Restaurant 	Furniture / Home Store 	Gas Station 	Grocery Store 	Gym 	Gym / Fitness Center 	Health & Beauty Service 	History Museum 	Hockey Arena 	Hot Dog Joint 	Hotel 	Hotel Bar 	Ice Cream Shop 	Indian Restaurant 	Insurance Office 	Italian Restaurant 	Japanese Restaurant 	Jewelry Store 	Kebab Restaurant 	Korean Restaurant 	Latin American Restaurant 	Lebanese Restaurant 	Lingerie Store 	Liquor Store 	Locksmith 	Market 	Mediterranean Restaurant 	Mental Health Office 	Mexican Restaurant 	Middle Eastern Restaurant 	Miscellaneous Shop 	Motel 	Motorcycle Shop 	Movie Theater 	Nightclub 	Optical Shop 	Other Nightlife 	Park 	Pharmacy 	Pizza Place 	Playground 	Plaza 	Pub 	Rental Car Location 	Rental Service 	Rock Club 	Sake Bar 	Sandwich Place 	Science Museum 	Seafood Restaurant 	Shipping Store 	Shoe Store 	Shopping Mall 	Smoke Shop 	Smoothie Shop 	Snack Place 	Spa 	Spanish Restaurant 	Sporting Goods Shop 	Stadium 	Steakhouse 	Supermarket 	Tapas Restaurant 	Thai Restaurant 	Theater 	Theme Park Ride / Attraction 	Toy / Game Store 	Vegetarian / Vegan Restaurant 	Video Store 	Vietnamese Restaurant 	Wine Bar 	Wine Shop 	Yoga Studio
+0 	0.000000 	0.000000 	0.000000 	0.2 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.400000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.200000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.200000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000
+1 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.142857 	0.000000 	0.000000 	0.00 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.142857 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.285714 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.142857 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.00 	0.285714 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000
+2 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.333333 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.333333 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.333333 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000
+3 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.25 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.250000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.250000 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.250000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000
+4 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.166667 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.166667 	0.000000 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.166667 	0.000000 	0.166667 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.166667 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.166667 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000
+5 	0.000000 	0.064516 	0.010753 	0.0 	0.010753 	0.000000 	0.010753 	0.000000 	0.010753 	0.021505 	0.043011 	0.00 	0.00 	0.010753 	0.000000 	0.010753 	0.000000 	0.010753 	0.000000 	0.000000 	0.000000 	0.000000 	0.010753 	0.010753 	0.010753 	0.000000 	0.010753 	0.053763 	0.000000 	0.010753 	0.000000 	0.000000 	0.000000 	0.000000 	0.043011 	0.000000 	0.000000 	0.000000 	0.075269 	0.010753 	0.000000 	0.010753 	0.0 	0.000000 	0.010753 	0.010753 	0.000000 	0.000000 	0.000000 	0.010753 	0.021505 	0.000000 	0.000000 	0.010753 	0.021505 	0.010753 	0.032258 	0.010753 	0.000000 	0.000000 	0.00 	0.032258 	0.010753 	0.000000 	0.010753 	0.000000 	0.000000 	0.000000 	0.000000 	0.010753 	0.000000 	0.010753 	0.010753 	0.000000 	0.032258 	0.010753 	0.000000 	0.000000 	0.000000 	0.010753 	0.010753 	0.000000 	0.000000 	0.010753 	0.000000 	0.000000 	0.00 	0.021505 	0.021505 	0.010753 	0.00 	0.000000 	0.010753 	0.064516 	0.010753 	0.010753 	0.010753 	0.000000 	0.000000 	0.010753 	0.000000 	0.010753 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.010753 	0.021505 	0.010753 	0.000000 	0.000000 	0.000000 	0.000000 	0.010753 	0.000000 	0.010753
+6 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.200000 	0.000000 	0.000000 	0.00 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.200000 	0.000000 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.200000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.200000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.200000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000
+7 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.00 	0.000000 	0.000000 	0.000000 	0.181818 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.090909 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.181818 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.090909 	0.090909 	0.000000 	0.000000 	0.090909 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.181818 	0.00 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.090909 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000
+8 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.076923 	0.076923 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.076923 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.076923 	0.000000 	0.153846 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.153846 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.076923 	0.076923 	0.076923 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.076923 	0.00 	0.000000 	0.000000 	0.076923 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000
+9 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.083333 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.083333 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.083333 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.166667 	0.00 	0.000000 	0.000000 	0.000000 	0.00 	0.083333 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.083333 	0.083333 	0.083333 	0.000000 	0.000000 	0.000000 	0.000000 	0.083333 	0.166667 	0.000000 	0.000000 	0.000000
+10 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.250000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.25 	0.000000 	0.000000 	0.250000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.25 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000
+11 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.100000 	0.000000 	0.000000 	0.00 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.100000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.100000 	0.000000 	0.000000 	0.000000 	0.000000 	0.1 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.100000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.200000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.100000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.200000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000
+12 	0.000000 	0.066667 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.066667 	0.00 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.066667 	0.000000 	0.000000 	0.066667 	0.000000 	0.000000 	0.066667 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.066667 	0.000000 	0.066667 	0.000000 	0.066667 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.133333 	0.066667 	0.00 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.133333 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.066667 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.066667 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000
+13 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.083333 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.083333 	0.000000 	0.083333 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.083333 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.083333 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.083333 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.083333 	0.000000 	0.166667 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.166667 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.083333 	0.000000
+14 	0.017857 	0.053571 	0.000000 	0.0 	0.000000 	0.000000 	0.017857 	0.017857 	0.017857 	0.000000 	0.017857 	0.00 	0.00 	0.000000 	0.017857 	0.000000 	0.000000 	0.000000 	0.017857 	0.017857 	0.000000 	0.000000 	0.017857 	0.000000 	0.000000 	0.000000 	0.000000 	0.017857 	0.000000 	0.000000 	0.017857 	0.000000 	0.017857 	0.017857 	0.000000 	0.017857 	0.017857 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.0 	0.017857 	0.000000 	0.000000 	0.017857 	0.035714 	0.000000 	0.017857 	0.000000 	0.000000 	0.017857 	0.000000 	0.000000 	0.000000 	0.017857 	0.000000 	0.017857 	0.017857 	0.00 	0.071429 	0.000000 	0.035714 	0.000000 	0.000000 	0.000000 	0.017857 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.035714 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.017857 	0.017857 	0.000000 	0.000000 	0.071429 	0.00 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.035714 	0.000000 	0.017857 	0.000000 	0.017857 	0.017857 	0.000000 	0.017857 	0.000000 	0.035714 	0.000000 	0.000000 	0.00 	0.017857 	0.000000 	0.017857 	0.017857 	0.000000 	0.000000 	0.017857 	0.017857 	0.000000 	0.000000 	0.017857 	0.000000 	0.000000
+15 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.375000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.375000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.125000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.125000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000
+16 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.25 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.0 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.250000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.25 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.25 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.00 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000 	0.000000
+
+bdl_merged = df_bdl
+
+# add clustering labels
+bdl_merged['Cluster Labels'] = kmeans.labels_
+
+bdl_merged = bdl_merged.join(bdl_neighborhoods_venues_sorted.set_index('Neighborhoods'), on='Neighborhoods')
+
+
+bdl.head()
+
+---------------------------------------------------------------------------
+
+ValueError                                Traceback (most recent call last)
+
+<ipython-input-70-569cd4a371b0> in <module>
+      2 
+      3 # add clustering labels
+----> 4 bdl_merged['Cluster Labels'] = kmeans.labels_
+      5 
+      6 bdl_merged = bdl_merged.join(bdl_neighborhoods_venues_sorted.set_index('Neighborhoods'), on='Neighborhoods')
+
+
+D:\Anaconda\lib\site-packages\pandas\core\frame.py in __setitem__(self, key, value)
+   3117         else:
+   3118             # set column
+-> 3119             self._set_item(key, value)
+   3120 
+   3121     def _setitem_slice(self, key, value):
+
+
+D:\Anaconda\lib\site-packages\pandas\core\frame.py in _set_item(self, key, value)
+   3192 
+   3193         self._ensure_valid_index(value)
+-> 3194         value = self._sanitize_column(key, value)
+   3195         NDFrame._set_item(self, key, value)
+   3196 
+
+
+D:\Anaconda\lib\site-packages\pandas\core\frame.py in _sanitize_column(self, key, value, broadcast)
+   3389 
+   3390             # turn me into an ndarray
+-> 3391             value = _sanitize_index(value, self.index, copy=False)
+   3392             if not isinstance(value, (np.ndarray, Index)):
+   3393                 if isinstance(value, list) and len(value) > 0:
+
+
+D:\Anaconda\lib\site-packages\pandas\core\series.py in _sanitize_index(data, index, copy)
+   3999 
+   4000     if len(data) != len(index):
+-> 4001         raise ValueError('Length of values does not match length of ' 'index')
+   4002 
+   4003     if isinstance(data, ABCIndexClass) and not copy:
+
+
+ValueError: Length of values does not match length of index
+
+pvd_grouped.to_csv('pvd_grouped')
+
+pvd_neighborhoods_venues_sorted.to_csv('pvd_sorted')
